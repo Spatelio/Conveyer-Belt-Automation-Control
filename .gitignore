@@ -1,0 +1,17 @@
+# CODESYS compiled output
+*.Device.Application.*
+*.precompilecache
+
+# CODESYS user and IDE settings
+*.opt
+
+# CODESYS lock and temp files
+*.~u
+*.~lock
+*.bak
+*.tmp
+~*
+
+# Windows
+Thumbs.db
+Desktop.ini
