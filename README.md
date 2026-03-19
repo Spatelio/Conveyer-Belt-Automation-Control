@@ -17,7 +17,7 @@ A PLC program written Structured Text (ST) using CODESYS V3.5, implementing a fu
 * debounced fault detection using TON timers
 * latched alarm logic -> faults stay active until operator explicitly resets
 * tiered alarm severity -> warning vs fault vs estop handled independently based on severity
-* clean FB architecture -> reusable, independently testable function blocks
+* clean FB architecture -> independently testable function blocks
 * fully simulated and tested on soft PLC
 
 
@@ -47,15 +47,13 @@ With project running, use Watch Window to force variable values:
 * type a new value and press Enter
 * PLC picks it up on the next scan cycle (within 10ms)
 
-\---
-
 
 
 
 
 ## **Testing**
 
-Seven tests were performed on soft PLC, forcing inputs and observing outputs in real time to test full operator workflow and faults.
+Several tests were performed on soft PLC, forcing inputs and observing outputs in real time to test full operator workflow and faults.
 
 
 
@@ -86,12 +84,12 @@ More testing was preformed to verify the general working behaviour of the system
 
 ```
 ConveyorBeltControl/
-├── GVL\\\_Conveyor        global variable list — all I/O and status signals
-├── FB\\\_PIDController    PID function block with anti-windup
-├── FB\\\_AlarmManager     alarm detection, debounce, latching, and reset logic
+├── GVL\_Conveyor        global variable list — all I/O and status signals
+├── FB\_PIDController    PID function block with anti-windup
+├── FB\_AlarmManager     alarm detection, debounce, latching, and reset logic
 
-├── FB\\\_BeltSimulator    real conveyer belt simulation to emulate speed output with real conditions (closed loop system)
-└── PRG\\\_Main            state machine — orchestrates all FBs and I/O
+├── FB\_BeltSimulator    real conveyer belt simulation to emulate speed output with real conditions (closed loop system)
+└── PRG\_Main            state machine — orchestrates all FBs and I/O
 ```
 
 
@@ -109,14 +107,14 @@ ConveyorBeltControl/
    │  actual RPM  │         │   IDLE/RUN/WARN/   │       │  0-100% cmd  │
    └──────────────┘         │    FAULT/ESTOP     │       └──────────────┘
    ┌──────────────┐         ├────────────────────┤       ┌──────────────┐
-   │   estop btn  │────────►│  FB\\\_PIDController │──────►│ HMI display  │
+   │   estop btn  │────────►│  FB\_PIDController  │──────►│ HMI display  │
    │  digital in  │         │    Kp · Ki · Kd    │       │ speed/state  │
    └──────────────┘         ├────────────────────┤       └──────────────┘
-   ┌──────────────┐         │  FB\\\_AlarmManager  │       ┌──────────────┐
+   ┌──────────────┐         │  FB\_AlarmManager   │       ┌──────────────┐
    │ overload rly │────────►│   TON debounce     │──────►│ alarm beacon │
    │ motor current│         │   latch · reset    │       │ warn / fault │
    └──────────────┘         ├────────────────────┤       └──────────────┘
-   ┌──────────────┐         │    GVL\\\_Conveyor   │       ┌──────────────┐
+   ┌──────────────┐         │    GVL\_Conveyor    │       ┌──────────────┐
    │speed setpoint│────────►│   global I/O bus   │──────►│  event log   │
    │    op input  │         │                    │       │  timestamps  │
    └──────────────┘         └────────────────────┘       └──────────────┘
@@ -137,24 +135,24 @@ maps to exactly one state with clear transitions.
          ┌─────────────────────────────┐
          │                             ▼
       ┌──┴───┐    start cmd       ┌─────────┐
-      │ **IDLE** │───────────────────►│   **RUN**   │
+      │ IDLE │───────────────────►│   RUN   │
       │ (0)  │                    │   (1)   │
       └──────┘                    └────┬────┘
          ▲                             │ any alarm active
          │                             ▼
          │                        ┌─────────┐
-         │                        │  **WARN**   │ belt still running
+         │                        │  WARN   │ belt still running
          │                        │   (2)   │ underspeed only
          │                        └────┬────┘
          │                             │ overload or estop confirmed
          │    reset request            ▼
          └───────────────────────┌─────────┐
-                                 │  **FAULT**  │ motor stopped
+                                 │  FAULT  │ motor stopped
                                  │   (3)   │ needs operator reset
                                  └─────────┘
 
          ┌──────────────────────────────────────────────┐
-         │      **E-STOP** (4) - triggered from ANY state   │
+         │      E-STOP (4) - triggered from ANY state   │
          │             - immediate motor cut            │
          │      clears only when: xEStop = FALSE        │
          │             AND  xResetRequest = TRUE        │
@@ -174,28 +172,28 @@ maps to exactly one state with clear transitions.
 |**ANY**|xEStop = TRUE|**ESTOP**|
 |**ESTOP**|xEStop = FALSE + reset request|**IDLE**|
 
-\---
 
-## 
+
+
 
 ## **PID Controller**
 
 Standard positional PID algorithm with output clamping and anti-windup.
 
 ```
-\*\*error\*\* = setpoint − actual\\\\\\\_speed
+error = setpoint − actual\_speed
 
-\*\*P term\*\* = Kp × error
+P term = Kp × error
              reacts to current error magnitude
 
-\*\*I term\*\* = Ki × Σ(error × dt)
+I term = Ki × Σ(error × dt)
              eliminates steady-state error over time
              dt = 0.01s (10ms cycle time)
 
-\*\*D term\*\* = Kd × (error − previous\\\\\\\_error)
+D term = Kd × (error − previous\_error)
              dampens overshoot by reacting to rate of change
 
-\*\*output\*\* = P + I + D   clamped to \\\\\\\[rOutputMin, rOutputMax]
+output = P + I + D   clamped to \[rOutputMin, rOutputMax]
 ```
 
 ### Anti-windup
@@ -213,12 +211,10 @@ if rRawOutput > rOutputMax:
 |**parameter**|**value**|**effect**|
 |-|-|-|
 |Kp|1.2|primary correction strength|
-|Ki|0.4|steady-state error elimination speed|
+|Ki|0.3|steady-state error elimination speed|
 |Kd|0.05|overshoot damping — kept low for conveyors|
 
-\---
 
-## 
 
 ## **Alarm management**
 
@@ -260,8 +256,6 @@ belt running at 100 RPM setpoint:
   if actual < 70 RPM for > 3s → underspeed alarm latches
 ```
 
-\---
-
 
 
 ## **Belt Simulator**
@@ -288,7 +282,7 @@ This is achieved through a few simulation parameters:
 
 ## **Global Variable List**
 
-## naming convention
+## Naming Convention
 
 Variables follow hungarian notation standard as close as possible to keep consistency:
 
@@ -304,27 +298,25 @@ fb = FB      fbPID, fbAlarms
 
 ```
 // inputs
-\*\*xEStop\*\*              BOOL    true = emergency stop pressed
-\*\*xOverloadRelay\*\*      BOOL    true = motor drawing excess current
-\*\*rActualSpeed\*\*        REAL    belt speed from sensor in RPM
-\*\*rSpeedSetpoint\*\*      REAL    desired speed from HMI operator
+xEStop                BOOL    true = emergency stop pressed
+xOverloadRelay        BOOL    true = motor drawing excess current
+rActualSpeed          REAL    belt speed from sensor in RPM
+rSpeedSetpoint        REAL    desired speed from HMI operator
 
 // outputs
-\*\*rMotorOutput\*\*        REAL    0.0 to 100.0 — drives the VFD
-\*\*xMotorEnable\*\*        BOOL    true = motor contactor closed
-\*\*xAlarmLight\*\*         BOOL    type 1 beacon — any alarm active
-\*\*xFaultLight\*\*         BOOL    type 2 beacon — fault or estop only
+rMotorOutput          REAL    0.0 to 100.0 — drives the VFD
+xMotorEnable          BOOL    true = motor contactor closed
+xAlarmLight           BOOL    type 1 beacon — any alarm active
+xFaultLight           BOOL    type 2 beacon — fault or estop only
 
 // status
-\*\*eConveyorState\*\*      INT     0=IDLE 1=RUN 2=WARN 3=FAULT 4=ESTOP
-\*\*xSystemReady\*\*        BOOL    true = no faults safe to start
-\*\*xResetRequest\*\*       BOOL    operator reset from HMI
+eConveyorState        INT     0=IDLE 1=RUN 2=WARN 3=FAULT 4=ESTOP
+xSystemReady          BOOL    true = no faults safe to start
+xResetRequest         BOOL    operator reset from HMI
 
 // alarm flags
-\*\*xAlarm\\\\\\\_EStop\*\*       BOOL   latched estop alarm
-\*\*xAlarm\\\\\\\_Overload\*\*    BOOL   latched overload alarm
-\*\*xAlarm\\\\\\\_Underspeed\*\*  BOOL   latched underspeed alarm
+xAlarm\\\\\\\_EStop       BOOL   latched estop alarm
+xAlarm\\\\\\\_Overload    BOOL   latched overload alarm
+xAlarm\\\\\\\_Underspeed  BOOL   latched underspeed alarm
 ```
-
-\---
 
