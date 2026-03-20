@@ -106,14 +106,14 @@ ConveyorBeltControl/
    │  actual RPM  │         │   IDLE/RUN/WARN/   │       │  0-100% cmd  │
    └──────────────┘         │    FAULT/ESTOP     │       └──────────────┘
    ┌──────────────┐         ├────────────────────┤       ┌──────────────┐
-   │   estop btn  │────────►│  FB\_PIDController  │──────►│ HMI display  │
+   │   estop btn  │────────►│  FB\_PIDController │──────►│ HMI display  │
    │  digital in  │         │    Kp · Ki · Kd    │       │ speed/state  │
    └──────────────┘         ├────────────────────┤       └──────────────┘
-   ┌──────────────┐         │  FB\_AlarmManager   │       ┌──────────────┐
+   ┌──────────────┐         │  FB\_AlarmManager  │       ┌──────────────┐
    │ overload rly │────────►│   TON debounce     │──────►│ alarm beacon │
    │ motor current│         │   latch · reset    │       │ warn / fault │
    └──────────────┘         ├────────────────────┤       └──────────────┘
-   ┌──────────────┐         │    GVL\_Conveyor    │       ┌──────────────┐
+   ┌──────────────┐         │    GVL\_Conveyor   │       ┌──────────────┐
    │speed setpoint│────────►│   global I/O bus   │──────►│  event log   │
    │    op input  │         │                    │       │  timestamps  │
    └──────────────┘         └────────────────────┘       └──────────────┘
@@ -219,7 +219,7 @@ These were tuned and tested extensively with fixed simulated belt conditions (si
 
 **Note:** While it exists as it was implemented initially as a PID controller, the derivative term is not used (set to 0) as it does not contribute to desired behaviour in this use case; All we need is the proportional and integrator terms, so technically we are controlling with a PI controller.
 
-```
+
 
 
 
@@ -229,7 +229,7 @@ These were tuned and tested extensively with fixed simulated belt conditions (si
 |Ki|0.25|steady-state error elimination speed|
 |Kd|0.0|overshoot damping — not really needed for a heavy conveyer belt system|
 
-```
+
 
 ## **Alarm management**
 
@@ -272,8 +272,9 @@ belt running at 100 RPM setpoint:
 
 
 
-**NOTE:** During ramp up (increase in set point), we assert a flag (set xRampComplete to FALSE) which disallows underspeed alarm momentarily until the middle period of ramp up is complete, where actual speed can lag a little behind the ramp setpoint. This is okay, as soon after, the underspeed alarm is re-enabled to be activated, so any sustained underspeed due to overloading/jams will signal the alarm directly after ramp up.
 ```
+
+**NOTE:** During ramp up (increase in set point), we assert a flag (set xRampComplete to FALSE) which disallows underspeed alarm momentarily until the middle period of ramp up is complete, where actual speed can lag a little behind the ramp setpoint. This is okay, as soon after, the underspeed alarm is re-enabled to be activated, so any sustained underspeed due to overloading/jams will signal the alarm directly after ramp up.
 
 
 
@@ -289,11 +290,11 @@ This is achieved through a few simulation parameters:
 
 
 
-**rAccelRate = 0.5 (defaults)**	RPM gained per scan - lower value simulates heavier load, slower response to motor output
+**rAccelRate = 0.5 (defaults)** - RPM gained per scan - lower value simulates heavier load, slower response to motor output
 
-**rFriction  = 0.4**		RPM lost per scan when motor is off
+**rFriction  = 0.4** - RPM lost per scan when motor is off
 
-**rMaxSpeed  = 120.0**		RPM at 100% motor output (we cap at 100RPM, correlating to \~66% motor output)
+**rMaxSpeed  = 120.0** - RPM at 100% motor output (we cap at 100RPM, correlating to \~66% motor output)
 
 
 
