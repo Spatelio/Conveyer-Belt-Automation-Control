@@ -61,8 +61,8 @@ Several tests were performed on soft PLC, forcing inputs and observing outputs i
 |-|-|-|
 |**IDLE**|none - baseline checked|eState = 0<br />xMotorEnable = FALSE<br />rMotorOuput = 0|
 |**STARTUP SETPOINT**|rSpeedSetpoint -> 100|belt ramps from 0 to 100 RPM<br />PID output reduces with belt speed|
-|**MID-RUN SETPOINT INCREASE**|rSpeedSetpoint = 50 initially,<br />then rSpeedSetpoint -> 100|belt tracks change smoothly<br />no overshooting or noticeable oscillation|
-|**MID-RUN SETPOINT INCREASE**|rSpeedSetpoint = 100 initially,<br />then rSpeedSetpoint -> 50|belt tracks change smoothly<br />|
+|**MID-RUN SETPOINT INCREASE**|rSpeedSetpoint = 50 initially,<br />then rSpeedSetpoint -> 100|belt tracks change smoothly<br />no overshooting<br /><0.25% oscillation **(observed around 0.015%)**|
+|**MID-RUN SETPOINT INCREASE**|rSpeedSetpoint = 100 initially,<br />then rSpeedSetpoint -> 50|"^"|
 |**UNDERSPEED - HEAVY LOAD**|fbBeltSim.rAccelRate → 0.02,<br />rSpeedSetpoint → 100|belt falls behind ramp<br />threshold tracks ramp<br />after 3s eState=2 WARN<br />belt still running|
 |**FAULT LATCH CHECK**|xOverloadRelay still TRUE,<br />xResetRequest → TRUE|stays in FAULT<br />latch held while physical fault still present|
 |**FAULT RECOVERY**|xOverloadRelay → FALSE,<br />xResetRequest → TRUE then FALSE|eState=0 IDLE<br />xFaultLight=FALSE<br />rRampedSetpoint reset to 0|
@@ -74,7 +74,7 @@ Several tests were performed on soft PLC, forcing inputs and observing outputs i
 
 
 
-More testing was preformed to verify the general working behaviour of the system and state transitions. More testing could be preformed to further tune control parameters to desired belt behaviour.
+Much more testing was preformed to verify the general working behaviour of the system and state transitions and improve behaviour to match real life applications of industrial PID controllers in conveyer automation. More testing could be preformed to further tune control parameters to desired belt behaviour, if it differs for the belt application (load, belt size, etc).
 
 
 
@@ -87,7 +87,6 @@ ConveyorBeltControl/
 ├── GVL\_Conveyor        global variable list — all I/O and status signals
 ├── FB\_PIDController    PID function block with anti-windup
 ├── FB\_AlarmManager     alarm detection, debounce, latching, and reset logic
-
 ├── FB\_BeltSimulator    real conveyer belt simulation to emulate speed output with real conditions (closed loop system)
 └── PRG\_Main            state machine — orchestrates all FBs and I/O
 ```
@@ -107,14 +106,14 @@ ConveyorBeltControl/
    │  actual RPM  │         │   IDLE/RUN/WARN/   │       │  0-100% cmd  │
    └──────────────┘         │    FAULT/ESTOP     │       └──────────────┘
    ┌──────────────┐         ├────────────────────┤       ┌──────────────┐
-   │   estop btn  │────────►│  FB\_PIDController │──────►│ HMI display  │
+   │   estop btn  │────────►│  FB\_PIDController  │──────►│ HMI display  │
    │  digital in  │         │    Kp · Ki · Kd    │       │ speed/state  │
    └──────────────┘         ├────────────────────┤       └──────────────┘
-   ┌──────────────┐         │  FB\_AlarmManager  │       ┌──────────────┐
+   ┌──────────────┐         │  FB\_AlarmManager   │       ┌──────────────┐
    │ overload rly │────────►│   TON debounce     │──────►│ alarm beacon │
    │ motor current│         │   latch · reset    │       │ warn / fault │
    └──────────────┘         ├────────────────────┤       └──────────────┘
-   ┌──────────────┐         │    GVL\_Conveyor   │       ┌──────────────┐
+   ┌──────────────┐         │    GVL\_Conveyor    │       ┌──────────────┐
    │speed setpoint│────────►│   global I/O bus   │──────►│  event log   │
    │    op input  │         │                    │       │  timestamps  │
    └──────────────┘         └────────────────────┘       └──────────────┘
@@ -180,6 +179,12 @@ maps to exactly one state with clear transitions.
 
 Standard positional PID algorithm with output clamping and anti-windup.
 
+
+
+**NOTE:** After tuning, it was decided to use this as a PI controller without the derivative term. See **Tuning Parameters**.
+
+
+
 ```
 error = setpoint − actual\_speed
 
@@ -208,13 +213,23 @@ if rRawOutput > rOutputMax:
 
 ### Tuning Parameters (starting values)
 
+These were tuned and tested extensively with fixed simulated belt conditions (simulating an industrial belt under a moderate-heavy load) to reach desired behaviour. With the following values and fixed simulation parameters: steady speed increase/decrease of around 2-3 RPM/s was observed for moderate-large setpoint changes, little to absolutely no oscillation around setpoint, and no overshooting. 
+
+
+
+**Note:** While it exists as it was implemented initially as a PID controller, the derivative term is not used (set to 0) as it does not contribute to desired behaviour in this use case; All we need is the proportional and integrator terms, so technically we are controlling with a PI controller.
+
+```
+
+
+
 |**parameter**|**value**|**effect**|
 |-|-|-|
-|Kp|1.2|primary correction strength|
-|Ki|0.3|steady-state error elimination speed|
-|Kd|0.05|overshoot damping — kept low for conveyors|
+|Kp|0.75|primary correction strength|
+|Ki|0.25|steady-state error elimination speed|
+|Kd|0.0|overshoot damping — not really needed for a heavy conveyer belt system|
 
-
+```
 
 ## **Alarm management**
 
@@ -254,6 +269,10 @@ rUnderspeedThreshold = rSpeedSetpoint × 0.70
 belt running at 100 RPM setpoint:
   threshold = 70 RPM
   if actual < 70 RPM for > 3s → underspeed alarm latches
+
+
+
+**NOTE:** During ramp up (increase in set point), we assert a flag (set xRampComplete to FALSE) which disallows underspeed alarm momentarily until the middle period of ramp up is complete, where actual speed can lag a little behind the ramp setpoint. This is okay, as soon after, the underspeed alarm is re-enabled to be activated, so any sustained underspeed due to overloading/jams will signal the alarm directly after ramp up.
 ```
 
 
@@ -272,9 +291,9 @@ This is achieved through a few simulation parameters:
 
 **rAccelRate = 0.5 (defaults)**	RPM gained per scan - lower value simulates heavier load, slower response to motor output
 
-**rFriction  = 0.3**		RPM lost per scan when motor is off
+**rFriction  = 0.4**		RPM lost per scan when motor is off
 
-**rMaxSpeed  = 150.0**		RPM at 100% motor output (we cap at 100RPM, correlating to \~66% motor output)
+**rMaxSpeed  = 120.0**		RPM at 100% motor output (we cap at 100RPM, correlating to \~66% motor output)
 
 
 
@@ -315,8 +334,8 @@ xSystemReady          BOOL    true = no faults safe to start
 xResetRequest         BOOL    operator reset from HMI
 
 // alarm flags
-xAlarm\\\\\\\_EStop       BOOL   latched estop alarm
-xAlarm\\\\\\\_Overload    BOOL   latched overload alarm
-xAlarm\\\\\\\_Underspeed  BOOL   latched underspeed alarm
+xAlarm\_EStop       BOOL   latched estop alarm
+xAlarm\_Overload    BOOL   latched overload alarm
+xAlarm\_Underspeed  BOOL   latched underspeed alarm
 ```
 
