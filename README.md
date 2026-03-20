@@ -270,8 +270,6 @@ belt running at 100 RPM setpoint:
   threshold = 70 RPM
   if actual < 70 RPM for > 3s → underspeed alarm latches
 
-
-
 ```
 
 **NOTE:** During ramp up (increase in set point), we assert a flag (set xRampComplete to FALSE) which disallows underspeed alarm momentarily until the middle period of ramp up is complete, where actual speed can lag a little behind the ramp setpoint. This is okay, as soon after, the underspeed alarm is re-enabled to be activated, so any sustained underspeed due to overloading/jams will signal the alarm directly after ramp up.
